@@ -152,25 +152,29 @@ class AzureDevOpsService {
     }
 
     try {
-      const response = await axios.get(`${this.baseUrl}/_apis/wiki/wikis`, {
+      // Use Azure DevOps Search API for wiki content (working URL format)
+      const searchResponse = await axios.post(`https://almsearch.dev.azure.com/${process.env.ADO_ORGANIZATION}/_apis/search/wikisearchresults`, {
+        searchText: query,
+        '$top': 10,
+        includeFacets: true,
+        filters: {
+          Project: [process.env.ADO_PROJECT]
+        }
+      }, {
         headers: this.headers,
         params: {
-          'api-version': '7.0'
+          'api-version': '7.1-preview.1'
         }
       });
 
-      const wikis = response.data.value;
-      const results = [];
-
-      for (const wiki of wikis) {
-        const pages = await this.searchWikiPages(wiki.id, query);
-        results.push(...pages);
-      }
-
-      return results;
+      const searchResults = searchResponse.data.results || [];
+      console.log(`✅ ADO Wiki Search API found ${searchResults.length} results`);
+      
+      return this.formatSearchResults(searchResults, 'wiki');
     } catch (error) {
-      console.error('Error searching ADO Wiki:', error);
-      throw error;
+      console.warn('ADO Search API not available, falling back to local search:', error.message);
+      // Fallback to the original implementation if Search API is not available
+      return this.searchWikiFallback(query);
     }
   }
 
@@ -226,6 +230,47 @@ class AzureDevOpsService {
     }
   }
 
+  async searchWikiFallback(query) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/_apis/wiki/wikis`, {
+        headers: this.headers,
+        params: {
+          'api-version': '7.0'
+        }
+      });
+
+      const wikis = response.data.value;
+      const results = [];
+
+      for (const wiki of wikis) {
+        const pages = await this.searchWikiPages(wiki.id, query);
+        results.push(...pages);
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Error in wiki fallback search:', error.message);
+      return [];
+    }
+  }
+
+  async getWikiPageContentById(wikiId, contentId) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/_apis/wiki/wikis/${wikiId}/pages/${contentId}`, {
+        headers: this.headers,
+        params: {
+          'api-version': '7.0',
+          'includeContent': true
+        }
+      });
+
+      return response.data.content || '';
+    } catch (error) {
+      console.error('Error fetching wiki page content by ID:', error.message);
+      return '';
+    }
+  }
+
   async searchWorkItems(query) {
     if (this.useMockData) {
       console.log('Using mock ADO Work Items data');
@@ -235,6 +280,34 @@ class AzureDevOpsService {
       );
     }
 
+    try {
+      // Use Azure DevOps Search API for work items (working URL format)
+      const searchResponse = await axios.post(`https://almsearch.dev.azure.com/${process.env.ADO_ORGANIZATION}/_apis/search/workitemsearchresults`, {
+        searchText: query,
+        '$top': 10,
+        includeFacets: true,
+        filters: {
+          Project: [process.env.ADO_PROJECT]
+        }
+      }, {
+        headers: this.headers,
+        params: {
+          'api-version': '7.1-preview.1'
+        }
+      });
+
+      const searchResults = searchResponse.data.results || [];
+      console.log(`✅ ADO Work Items Search API found ${searchResults.length} results`);
+      
+      return this.formatSearchResults(searchResults, 'workitem');
+    } catch (error) {
+      console.warn('ADO Search API not available for work items, falling back to WIQL:', error.message);
+      // Fallback to WIQL if Search API is not available
+      return this.searchWorkItemsFallback(query);
+    }
+  }
+
+  async searchWorkItemsFallback(query) {
     try {
       const wiql = `
         SELECT [System.Id], [System.Title], [System.Description], [System.State], [System.CreatedDate]
@@ -277,9 +350,230 @@ class AzureDevOpsService {
         url: wi.url.replace('_apis/wit/workItems', '_workitems/edit')
       }));
     } catch (error) {
-      console.error('Error searching work items:', error);
-      throw error;
+      console.error('Error in work items fallback search:', error.message);
+      return [];
     }
+  }
+
+  // Diagnostic method to test ADO Search API availability
+  async diagnoseSearchAPI() {
+    console.log('🔍 Diagnosing ADO Search API...');
+    
+    // Test 1: Check organization access
+    try {
+      const orgResponse = await axios.get(
+        `https://dev.azure.com/${process.env.ADO_ORGANIZATION}/_apis/projects`,
+        {
+          headers: this.headers,
+          params: { 'api-version': '7.1' }
+        }
+      );
+      console.log('✅ Organization access OK - Projects found:', orgResponse.data.count);
+    } catch (error) {
+      console.log('❌ Organization access failed:', error.response?.status, error.message);
+      return { organizationAccess: false };
+    }
+
+    // Test 2: Check different search API endpoints and versions
+    const searchTests = [
+      // Wiki Search variations
+      {
+        name: 'Wiki Search API (7.1-preview.1)',
+        method: 'POST',
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/wikisearchresults`,
+        version: '7.1-preview.1',
+        payload: { searchText: 'test', '$top': 1 }
+      },
+      {
+        name: 'Wiki Search API (7.0-preview.1)', 
+        method: 'POST',
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/wikisearchresults`,
+        version: '7.0-preview.1',
+        payload: { searchText: 'test', '$top': 1 }
+      },
+      {
+        name: 'Wiki Search API (6.0-preview.1)',
+        method: 'POST', 
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/wikisearchresults`,
+        version: '6.0-preview.1',
+        payload: { searchText: 'test', '$top': 1 }
+      },
+      // Alternative search endpoints
+      {
+        name: 'Code Search API',
+        method: 'POST',
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/codesearchresults`,
+        version: '7.1-preview.1', 
+        payload: { searchText: 'test', '$top': 1 }
+      },
+      {
+        name: 'Work Item Search API',
+        method: 'POST',
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/workitemsearchresults`,
+        version: '7.1-preview.1',
+        payload: { searchText: 'test', '$top': 1 }
+      },
+      // Generic search endpoint
+      {
+        name: 'Generic Search Endpoint',
+        method: 'GET',
+        url: `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search`,
+        version: '7.1-preview.1'
+      }
+    ];
+
+    const results = {};
+    
+    for (const test of searchTests) {
+      try {
+        let response;
+        if (test.method === 'POST') {
+          response = await axios.post(test.url, test.payload, {
+            headers: this.headers,
+            params: { 'api-version': test.version }
+          });
+        } else {
+          response = await axios.get(test.url, {
+            headers: this.headers,
+            params: { 'api-version': test.version }
+          });
+        }
+        console.log(`✅ ${test.name}: SUCCESS (${response.status})`);
+        results[test.name] = { success: true, status: response.status };
+      } catch (error) {
+        console.log(`❌ ${test.name}: FAILED (${error.response?.status || error.code})`);
+        results[test.name] = { 
+          success: false, 
+          status: error.response?.status || error.code,
+          message: error.response?.data?.message || error.message
+        };
+      }
+    }
+
+    // Test 3: Check search service availability
+    try {
+      const searchServiceResponse = await axios.get(
+        `https://${process.env.ADO_ORGANIZATION}.visualstudio.com/_apis/search/searchservices`,
+        {
+          headers: this.headers,
+          params: { 'api-version': '7.1-preview.1' }
+        }
+      );
+      console.log('✅ Search services available:', searchServiceResponse.data);
+      results.searchServices = { success: true, data: searchServiceResponse.data };
+    } catch (error) {
+      console.log('❌ Search services check failed:', error.response?.status, error.message);
+      results.searchServices = { success: false, status: error.response?.status };
+    }
+
+    return results;
+  }
+
+  // Alternative search implementation using different ADO APIs
+  async searchWikiAlternative(query) {
+    console.log('🔍 Trying alternative wiki search approaches...');
+    
+    // Approach 1: Try Azure DevOps Services search (different URL format)
+    try {
+      const response = await axios.post(
+        `https://almsearch.dev.azure.com/${process.env.ADO_ORGANIZATION}/_apis/search/wikisearchresults`,
+        {
+          searchText: query,
+          '$top': 10,
+          includeFacets: true,
+          filters: {
+            Project: [process.env.ADO_PROJECT]
+          }
+        },
+        {
+          headers: this.headers,
+          params: { 'api-version': '7.1-preview.1' }
+        }
+      );
+      console.log('✅ Alternative search URL worked!');
+      return this.formatSearchResults(response.data.results, 'wiki');
+    } catch (error) {
+      console.log('❌ Alternative search URL failed:', error.response?.status);
+    }
+
+    // Approach 2: Use WIQL for wiki-like content in work items
+    try {
+      const wiqlQuery = `
+        SELECT [System.Id], [System.Title], [System.Description], [System.Tags]
+        FROM workitems 
+        WHERE [System.WorkItemType] IN ('Epic', 'Feature', 'User Story')
+        AND ([System.Title] CONTAINS WORDS '${query}' OR [System.Description] CONTAINS WORDS '${query}')
+        ORDER BY [System.ChangedDate] DESC
+      `;
+      
+      const wiqlResponse = await axios.post(`${this.baseUrl}/_apis/wit/wiql`, {
+        query: wiqlQuery
+      }, {
+        headers: this.headers,
+        params: { 'api-version': '7.1' }
+      });
+      
+      if (wiqlResponse.data.workItems.length > 0) {
+        const workItemIds = wiqlResponse.data.workItems.map(wi => wi.id);
+        const detailsResponse = await axios.get(`${this.baseUrl}/_apis/wit/workitems`, {
+          headers: this.headers,
+          params: {
+            'ids': workItemIds.join(','),
+            'api-version': '7.1',
+            '$expand': 'fields'
+          }
+        });
+        
+        console.log('✅ WIQL-based search found', detailsResponse.data.value.length, 'items');
+        return detailsResponse.data.value.map(wi => ({
+          id: wi.id,
+          title: wi.fields['System.Title'],
+          content: wi.fields['System.Description'] || '',
+          source: 'ADO Work Item (Wiki Content)',
+          author: wi.fields['System.CreatedBy']?.displayName,
+          timestamp: wi.fields['System.ChangedDate'],
+          url: wi.url.replace('_apis/wit/workItems', '_workitems/edit'),
+          tags: wi.fields['System.Tags'] ? wi.fields['System.Tags'].split(';') : []
+        }));
+      }
+    } catch (error) {
+      console.log('❌ WIQL approach failed:', error.response?.status);
+    }
+
+    return [];
+  }
+
+  formatSearchResults(results, type) {
+    if (!results || !Array.isArray(results)) return [];
+    
+    return results.map(result => {
+      if (type === 'wiki') {
+        return {
+          id: result.wiki?.id || result.id,
+          title: result.fileName || result.wiki?.name || result.title,
+          content: result.matches?.content?.[0]?.text || result.content || '',
+          source: 'ADO Wiki',
+          author: result.wiki?.modifiedBy?.displayName || result.author,
+          timestamp: result.wiki?.modifiedDate || result.timestamp,
+          url: result.wiki?.url || result.url,
+          relevanceScore: result.relevance,
+          path: result.path
+        };
+      } else {
+        // Work item format
+        return {
+          id: result.workItem?.id || result.id,
+          title: result.workItem?.fields?.['System.Title'] || result.title,
+          content: result.workItem?.fields?.['System.Description'] || result.matches?.content?.[0]?.text || result.content || '',
+          state: result.workItem?.fields?.['System.State'] || result.state,
+          source: 'ADO Work Item',
+          author: result.workItem?.fields?.['System.CreatedBy']?.displayName || result.author,
+          timestamp: result.workItem?.fields?.['System.CreatedDate'] || result.timestamp,
+          url: result.workItem?.url ? result.workItem.url.replace('_apis/wit/workItems', '_workitems/edit') : result.url,
+          relevanceScore: result.relevance
+        };
+      }
+    });
   }
 }
 
