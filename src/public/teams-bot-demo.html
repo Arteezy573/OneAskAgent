@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneAsk Teams Bot Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f3f2f1;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .teams-header {
+            background: #464775;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .teams-header h1 {
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .bot-icon {
+            width: 32px;
+            height: 32px;
+            background: #6264a7;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+
+        .chat-container {
+            flex: 1;
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #f8f8f8;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-header .bot-icon {
+            width: 40px;
+            height: 40px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            min-height: 400px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .user-avatar {
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+        }
+
+        .bot-avatar {
+            background: #6264a7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.1em;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            line-height: 1.4;
+        }
+
+        .user .message-content {
+            background: #0078d4;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot .message-content {
+            background: #f3f2f1;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+
+        .confidence-high { background: #c8e6c9; color: #2e7d32; }
+        .confidence-medium { background: #fff3e0; color: #f57c00; }
+        .confidence-low { background: #ffcdd2; color: #d32f2f; }
+
+        .sources {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .source-link {
+            color: #0078d4;
+            text-decoration: none;
+            display: block;
+            margin: 2px 0;
+        }
+
+        .source-link:hover {
+            text-decoration: underline;
+        }
+
+        .input-container {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            background: #fafafa;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #d0d0d0;
+            border-radius: 20px;
+            font-size: 14px;
+            outline: none;
+            resize: none;
+            min-height: 20px;
+            max-height: 100px;
+        }
+
+        .message-input:focus {
+            border-color: #0078d4;
+        }
+
+        .send-button {
+            width: 40px;
+            height: 40px;
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: background 0.2s;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #106ebe;
+        }
+
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 8px 16px;
+            font-style: italic;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .example-questions {
+            margin-top: 10px;
+        }
+
+        .example-button {
+            display: inline-block;
+            margin: 4px 8px 4px 0;
+            padding: 6px 12px;
+            background: #e1e1e1;
+            border: none;
+            border-radius: 16px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .example-button:hover {
+            background: #d0d0d0;
+        }
+    </style>
+</head>
+<body>
+    <div class="teams-header">
+        <div class="bot-icon">🤖</div>
+        <h1>Microsoft Teams - OneAsk Bot</h1>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="bot-icon bot-avatar">🤖</div>
+            <div>
+                <div style="font-weight: 500;">OneAsk Bot</div>
+                <div style="font-size: 0.85em; color: #666;">Your Personal Knowledge Agent</div>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="messages">
+            <div class="message bot">
+                <div class="message-avatar bot-avatar">🤖</div>
+                <div class="message-content">
+                    <div>👋 Hi! I'm OneAsk, your personal knowledge agent. I can help you find information across your Microsoft workspace including Teams messages, Azure DevOps wikis, and Engineering Hub documentation.</div>
+                    <div class="example-questions">
+                        <strong>Try asking:</strong><br>
+                        <button class="example-button" onclick="sendExample('What\'s the latest on Project Bonica?')">What's the latest on Project Bonica?</button>
+                        <button class="example-button" onclick="sendExample('EDT onboarding')">EDT onboarding</button>
+                        <button class="example-button" onclick="sendExample('API standards')">API standards</button>
+                        <button class="example-button" onclick="sendExample('FinOps best practices')">FinOps best practices</button>
+                    </div>
+                    <div class="message-time">Bot • Just now</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing">
+            OneAsk is typing...
+        </div>
+
+        <div class="input-container">
+            <div class="input-row">
+                <textarea id="messageInput" 
+                         class="message-input" 
+                         placeholder="Type your message here..."
+                         onkeypress="handleKeyPress(event)"
+                         rows="1"></textarea>
+                <button onclick="sendMessage()" 
+                        id="sendButton" 
+                        class="send-button">➤</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function sendExample(message) {
+            document.getElementById('messageInput').value = message;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            const messagesDiv = document.getElementById('messages');
+            const typingDiv = document.getElementById('typing');
+            const sendButton = document.getElementById('sendButton');
+
+            // Add user message
+            messagesDiv.innerHTML += `
+                <div class="message user">
+                    <div class="message-avatar user-avatar">U</div>
+                    <div class="message-content">
+                        <div>${message}</div>
+                        <div class="message-time">You • Now</div>
+                    </div>
+                </div>
+            `;
+
+            // Clear input and show typing
+            input.value = '';
+            typingDiv.style.display = 'block';
+            sendButton.disabled = true;
+
+            try {
+                const response = await fetch('/api/test-bot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const confidenceClass = data.confidence > 70 ? 'confidence-high' : 
+                                          data.confidence > 40 ? 'confidence-medium' : 'confidence-low';
+                    
+                    // Format the bot response for display
+                    let formattedResponse = data.botResponse
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/\n/g, '<br>');
+                    
+                    formattedResponse = '<p>' + formattedResponse + '</p>';
+
+                    messagesDiv.innerHTML += `
+                        <div class="message bot">
+                            <div class="message-avatar bot-avatar">🤖</div>
+                            <div class="message-content">
+                                <div>${formattedResponse}</div>
+                                <div class="message-time">OneAsk Bot • Just now</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messagesDiv.innerHTML += `
+                        <div class="message bot">
+                            <div class="message-avatar bot-avatar">🤖</div>
+                            <div class="message-content">
+                                <div>❌ Sorry, I encountered an error. Please try again.</div>
+                                <div class="message-time">OneAsk Bot • Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                messagesDiv.innerHTML += `
+                    <div class="message bot">
+                        <div class="message-avatar bot-avatar">🤖</div>
+                        <div class="message-content">
+                            <div>❌ Connection error. Please check your network and try again.</div>
+                            <div class="message-time">OneAsk Bot • Just now</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Hide typing and re-enable button
+            typingDiv.style.display = 'none';
+            sendButton.disabled = false;
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // Auto-resize textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        });
+    </script>
+</body>
+</html>

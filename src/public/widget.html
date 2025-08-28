@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneAsk Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .widget-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10000;
+        }
+
+        .widget-header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .widget-title {
+            font-size: 1.1em;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .minimize-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .minimize-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .widget-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: #fafafa;
+        }
+
+        .widget-message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .widget-user-message {
+            background: #e3f2fd;
+            margin-left: 20px;
+            text-align: right;
+        }
+
+        .widget-bot-message {
+            background: white;
+            border: 1px solid #e0e0e0;
+            margin-right: 20px;
+        }
+
+        .widget-input-container {
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+
+        .widget-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 0.9em;
+            outline: none;
+        }
+
+        .widget-input:focus {
+            border-color: #4CAF50;
+        }
+
+        .widget-loading {
+            padding: 10px;
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .widget-fab {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 10001;
+            transition: transform 0.2s;
+        }
+
+        .widget-fab:hover {
+            transform: scale(1.1);
+        }
+
+        .widget-fab-icon {
+            color: white;
+            font-size: 1.5em;
+        }
+
+        .widget-sources {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .widget-source-item {
+            display: block;
+            color: #1976d2;
+            text-decoration: none;
+            margin: 2px 0;
+        }
+
+        .widget-source-item:hover {
+            text-decoration: underline;
+        }
+
+        .widget-hidden {
+            display: none;
+        }
+
+        .widget-confidence {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+
+        .widget-confidence-high { background: #c8e6c9; color: #2e7d32; }
+        .widget-confidence-medium { background: #fff3e0; color: #f57c00; }
+        .widget-confidence-low { background: #ffcdd2; color: #d32f2f; }
+    </style>
+</head>
+<body>
+    <!-- FAB Button -->
+    <div class="widget-fab" id="widgetFab" onclick="toggleWidget()">
+        <span class="widget-fab-icon">💬</span>
+    </div>
+
+    <!-- Widget Container -->
+    <div class="widget-container widget-hidden" id="widgetContainer">
+        <div class="widget-header">
+            <div class="widget-title">OneAsk</div>
+            <button class="minimize-btn" onclick="toggleWidget()">−</button>
+        </div>
+        
+        <div class="widget-messages" id="widgetMessages">
+            <div class="widget-message widget-bot-message">
+                <p>👋 Hi! I'm OneAsk. Ask me about your workspace documentation, Teams messages, or ADO items.</p>
+            </div>
+        </div>
+        
+        <div class="widget-loading widget-hidden" id="widgetLoading">
+            🤖 Searching...
+        </div>
+        
+        <div class="widget-input-container">
+            <input type="text" 
+                   id="widgetInput" 
+                   class="widget-input" 
+                   placeholder="Ask me anything..."
+                   onkeypress="handleWidgetKeyPress(event)">
+        </div>
+    </div>
+
+    <script>
+        let isWidgetOpen = false;
+
+        function toggleWidget() {
+            const container = document.getElementById('widgetContainer');
+            const fab = document.getElementById('widgetFab');
+            
+            isWidgetOpen = !isWidgetOpen;
+            
+            if (isWidgetOpen) {
+                container.classList.remove('widget-hidden');
+                fab.style.display = 'none';
+                document.getElementById('widgetInput').focus();
+            } else {
+                container.classList.add('widget-hidden');
+                fab.style.display = 'flex';
+            }
+        }
+
+        async function askWidgetQuestion() {
+            const input = document.getElementById('widgetInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+
+            const messagesDiv = document.getElementById('widgetMessages');
+            const loadingDiv = document.getElementById('widgetLoading');
+
+            // Add user message
+            messagesDiv.innerHTML += `
+                <div class="widget-message widget-user-message">
+                    <p>${question}</p>
+                </div>
+            `;
+
+            // Show loading
+            loadingDiv.classList.remove('widget-hidden');
+            input.value = '';
+
+            try {
+                const response = await fetch('/api/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        question: question,
+                        userId: 'widget-user'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const confidenceClass = data.confidence > 70 ? 'widget-confidence-high' : 
+                                          data.confidence > 40 ? 'widget-confidence-medium' : 'widget-confidence-low';
+                    
+                    let sourcesHtml = '';
+                    if (data.sources && data.sources.length > 0) {
+                        sourcesHtml = '<div class="widget-sources"><strong>Sources:</strong><br>';
+                        data.sources.forEach((source, index) => {
+                            if (index < 3) { // Limit sources in widget
+                                sourcesHtml += `<a href="${source.url || '#'}" class="widget-source-item" target="_blank">
+                                    📄 ${source.title}
+                                </a>`;
+                            }
+                        });
+                        if (data.sources.length > 3) {
+                            sourcesHtml += `<span>... and ${data.sources.length - 3} more</span>`;
+                        }
+                        sourcesHtml += '</div>';
+                    }
+
+                    messagesDiv.innerHTML += `
+                        <div class="widget-message widget-bot-message">
+                            <p>${data.answer}</p>
+                            <span class="widget-confidence ${confidenceClass}">${data.confidence}%</span>
+                            ${sourcesHtml}
+                        </div>
+                    `;
+                } else {
+                    messagesDiv.innerHTML += `
+                        <div class="widget-message widget-bot-message">
+                            <p>❌ ${data.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                messagesDiv.innerHTML += `
+                    <div class="widget-message widget-bot-message">
+                        <p>❌ Connection error. Please try again.</p>
+                    </div>
+                `;
+            }
+
+            // Hide loading
+            loadingDiv.classList.add('widget-hidden');
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function handleWidgetKeyPress(event) {
+            if (event.key === 'Enter') {
+                askWidgetQuestion();
+            }
+        }
+
+        // Auto-open widget after 3 seconds (demo purposes)
+        setTimeout(() => {
+            if (!isWidgetOpen) {
+                toggleWidget();
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
