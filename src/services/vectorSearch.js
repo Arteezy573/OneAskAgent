@@ -8,6 +8,7 @@ class VectorSearchService {
       process.env.SEARCH_INDEX_NAME,
       new AzureKeyCredential(process.env.SEARCH_API_KEY)
     );
+    this.skipHybridSearch = process.env.USE_HYBRID_SEARCH === 'false';
 
     // Main OpenAI client for chat completions
     this.openai = new OpenAI({
@@ -156,6 +157,10 @@ class VectorSearchService {
   }
 
   async hybridSearch(query, k = 5) {
+    if (this.skipHybridSearch) {
+      console.log('Skipping hybrid search as per configuration');
+      return [];
+    }
     try {
       const queryEmbedding = await this.generateEmbedding(query);
       
