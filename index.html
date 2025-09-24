@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneAsk - Your Personal Knowledge Agent (.NET Backend)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 900px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .backend-info {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .chat-container {
+            padding: 30px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: #e3f2fd;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .bot-message {
+            background: #f1f8e9;
+            margin-right: auto;
+        }
+
+        .message pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+
+        .function-calls {
+            margin: 10px 0;
+            font-size: 0.85em;
+            color: #666;
+            font-style: italic;
+        }
+
+        .sources {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .source-item {
+            display: block;
+            margin: 5px 0;
+            color: #1976d2;
+            text-decoration: none;
+        }
+
+        .source-item:hover {
+            text-decoration: underline;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .question-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .question-input:focus {
+            border-color: #4CAF50;
+        }
+
+        .ask-button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: transform 0.2s;
+        }
+
+        .ask-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .ask-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .clear-button {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.2s;
+        }
+
+        .clear-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .examples {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .example-button {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 16px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+
+        .example-button:hover {
+            background: #e0e0e0;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        .connection-ok {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .connection-error {
+            background: #ffcdd2;
+            color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OneAsk</h1>
+            <p>Your Personal Knowledge Agent</p>
+            <div class="backend-info">
+                🚀 Powered by .NET 8 + Semantic Kernel + ChatCompletionAgent
+            </div>
+            <div class="connection-status" id="connectionStatus">Checking connection...</div>
+        </div>
+
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message bot-message">
+                    <p>👋 Hi! I'm OneAsk, your personal knowledge agent powered by a .NET backend with Semantic Kernel.</p>
+                    <p>I can help you find information across:</p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li><strong>Azure DevOps</strong> - Wiki pages and work items</li>
+                        <li><strong>Microsoft Teams</strong> - Messages and conversations</li>
+                        <li><strong>Engineering Hub</strong> - Technical documentation</li>
+                        <li><strong>Vector Search</strong> - Semantic similarity search</li>
+                    </ul>
+                    <div class="examples">
+                        <span class="example-button" onclick="setQuestion('What\'s the latest on Project Bonica?')">What's the latest on Project Bonica?</span>
+                        <span class="example-button" onclick="setQuestion('Where is the EDT onboarding guide?')">Where is the EDT onboarding guide?</span>
+                        <span class="example-button" onclick="setQuestion('Show me API design standards')">Show me API design standards</span>
+                        <span class="example-button" onclick="setQuestion('How do I deploy to production?')">How do I deploy to production?</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                🤖 OneAsk is thinking and searching across your workspace...
+            </div>
+
+            <div class="input-container">
+                <input type="text"
+                       id="questionInput"
+                       class="question-input"
+                       placeholder="Ask me anything about your workspace..."
+                       onkeypress="handleKeyPress(event)">
+                <button onclick="askQuestion()"
+                        id="askButton"
+                        class="ask-button">Ask</button>
+                <button onclick="clearHistory()"
+                        id="clearButton"
+                        class="clear-button">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api/chat';
+
+        // Check API health on load
+        async function checkConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.textContent = `✅ Connected to ${data.service}`;
+                    statusDiv.className = 'connection-status connection-ok';
+                } else {
+                    throw new Error('API not responding');
+                }
+            } catch (error) {
+                statusDiv.textContent = '❌ .NET API not available';
+                statusDiv.className = 'connection-status connection-error';
+            }
+        }
+
+        async function askQuestion() {
+            const input = document.getElementById('questionInput');
+            const question = input.value.trim();
+
+            if (!question) return;
+
+            const messagesDiv = document.getElementById('messages');
+            const loadingDiv = document.getElementById('loading');
+            const askButton = document.getElementById('askButton');
+
+            // Add user message
+            messagesDiv.innerHTML += `
+                <div class="message user-message">
+                    <p><strong>You:</strong> ${question}</p>
+                </div>
+            `;
+
+            // Show loading
+            loadingDiv.style.display = 'block';
+            askButton.disabled = true;
+            input.value = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/ask`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        userId: 'demo-user'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Format the response nicely
+                    let formattedAnswer = data.answer.replace(/\n/g, '<br>');
+
+                    // Add function call information if available
+                    let functionCallInfo = '';
+                    if (data.functionCalls && data.functionCalls.length > 0) {
+                        functionCallInfo = `<div class="function-calls">🔧 Used tools: ${data.functionCalls.join(', ')}</div>`;
+                    }
+
+                    messagesDiv.innerHTML += `
+                        <div class="message bot-message">
+                            <p><strong>OneAsk:</strong></p>
+                            <div>${formattedAnswer}</div>
+                            ${functionCallInfo}
+                            <div style="margin-top: 10px; font-size: 0.8em; color: #666;">
+                                Response time: ${data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : 'Unknown'}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    messagesDiv.innerHTML += `
+                        <div class="message bot-message">
+                            <p><strong>OneAsk:</strong> ❌ Sorry, I encountered an error: ${data.error || 'Unknown error'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error asking question:', error);
+                messagesDiv.innerHTML += `
+                    <div class="message bot-message">
+                        <p><strong>OneAsk:</strong> ❌ Sorry, I'm having trouble connecting to the .NET backend. Please make sure the OneAsk Agent is running on localhost:5000.</p>
+                        <p>Error details: ${error.message}</p>
+                    </div>
+                `;
+            }
+
+            // Hide loading and re-enable button
+            loadingDiv.style.display = 'none';
+            askButton.disabled = false;
+
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        async function clearHistory() {
+            try {
+                const response = await fetch(`${API_BASE}/clear-history`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    // Clear the messages div but keep the welcome message
+                    const messagesDiv = document.getElementById('messages');
+                    messagesDiv.innerHTML = `
+                        <div class="message bot-message">
+                            <p>🗑️ Conversation history cleared! How can I help you today?</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error clearing history:', error);
+            }
+        }
+
+        function setQuestion(question) {
+            document.getElementById('questionInput').value = question;
+            askQuestion();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                askQuestion();
+            }
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            document.getElementById('questionInput').focus();
+            checkConnection();
+        };
+    </script>
+</body>
+</html>

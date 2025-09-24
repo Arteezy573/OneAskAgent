@@ -3,7 +3,18 @@
     "allow": [
       "Bash(taskkill:*)",
       "Bash(powershell:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Read(//c/git/SupportPilotAgent/**)",
+      "Bash(cat:*)",
+      "Bash(chmod:*)",
+      "Bash(dotnet --version)",
+      "Read(//c/git/**)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet build)",
+      "Bash(timeout:*)",
+      "Bash(AZURE_OPENAI_ENDPOINT=https://demo.openai.azure.com/ AZURE_OPENAI_API_KEY=demo-key AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4 timeout 10s dotnet run)",
+      "Bash(AZURE_OPENAI_ENDPOINT=https://demo.openai.azure.com/ AZURE_OPENAI_API_KEY=demo-key AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4 dotnet run --urls http://localhost:5000)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
